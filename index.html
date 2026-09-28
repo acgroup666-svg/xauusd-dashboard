@@ -255,7 +255,7 @@
       <div id="heartbeat"><div class="note">加载中…</div></div>
     </div>
     <details class="glass card">
-      <summary>运行方案</summary>
+      <summary>交易规则</summary>
       <div class="plan" id="planText" style="margin-top:10px">加载中…</div>
     </details>
     <footer>
@@ -500,7 +500,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
         '<span class="a">'+esc(b.a)+'</span></div>';
     }).join("") : '<div class="note">暂无心跳记录</div>';
 
-    $("planText").textContent = content("3-运行方案.md") || "暂无";
+    $("planText").textContent = content("5-交易规则.md") || "暂无";
   }
 
   function renderAnalysis(md){
