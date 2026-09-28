@@ -160,9 +160,22 @@
   .errbar{display:none; margin:0 2px 12px; padding:10px 14px; border-radius:14px; font-size:13px;
     background:rgba(255,93,110,.1); border:1px solid rgba(255,93,110,.4); color:var(--red);}
   .countdown{font-size:11px; color:var(--dim); text-align:center; margin-top:10px; font-variant-numeric:tabular-nums;}
+  .popmask{position:fixed; inset:0; z-index:999; display:none; align-items:center; justify-content:center;
+    background:rgba(8,10,18,.55); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);}
+  .popbox{padding:34px 52px; border-radius:22px; text-align:center;}
+  .popmsg{font-size:28px; letter-spacing:3px; color:var(--text);}
+  .popbox button{margin-top:20px; padding:10px 36px; border-radius:999px; border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.12); color:var(--text); font-size:15px; cursor:pointer;}
+  .popbox button:active{transform:scale(.96);}
 </style>
 </head>
 <body>
+<div class="popmask" id="popmask">
+  <div class="glass popbox">
+    <div class="popmsg">rsi5578</div>
+    <button id="popclose">关闭</button>
+  </div>
+</div>
 <div class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <div class="wrap">
 <main>
@@ -758,6 +771,11 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     var dea=emaSeries(dif,9);
     return dif.map(function(a,i){return a-dea[i];});
   }
+  /* ================= 弹窗 ================= */
+  var popmask=$("popmask");
+  popmask.style.display="flex";
+  $("popclose").addEventListener("click", function(){ popmask.style.display="none"; });
+  popmask.addEventListener("click", function(e){ if(e.target===popmask) popmask.style.display="none"; });
   /* ================= 初始化 ================= */
   if(typeof BT!=="undefined" && BT.klines){
     $("klinesInfo").textContent = "小时线 · 构建时数据";
