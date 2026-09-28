@@ -218,19 +218,19 @@
   <!-- ===== 回测 ===== -->
   <section class="tab" id="tab-backtest">
     <div class="glass card">
-      <div class="card-h">策略回测 <span class="tag">规则化近似</span></div>
+      <div class="card-h">策略回测 <span class="tag">历史模拟·非实盘</span></div>
       <div class="verdict" id="btVerdict">加载中…</div>
       <div class="grid3" id="btStats">
-        <div class="stat"><div class="k">做了多少笔</div><div class="v" id="bsTrades">—</div><div class="d">3个月里一共出手这么多次</div></div>
-        <div class="stat"><div class="k">赢了几成</div><div class="v" id="bsWin">—</div><div class="d" id="bsWinD">—</div></div>
-        <div class="stat"><div class="k">一共赚多少</div><div class="v" id="bsPnl">—</div><div class="d" id="bsPnlD">—</div></div>
-        <div class="stat"><div class="k">赚的是亏的几倍</div><div class="v" id="bsPf">—</div><div class="d">赢到的钱 ÷ 亏掉的钱，大于1才算账算得过来</div></div>
-        <div class="stat"><div class="k">最倒霉时亏多少</div><div class="v red" id="bsDd">—</div><div class="d">账上最多浮亏过这么多，先掂量受不受得了</div></div>
-        <div class="stat"><div class="k">平均每笔赚多少</div><div class="v" id="bsExp">—</div><div class="d" id="bsExpD">—</div></div>
+        <div class="stat"><div class="k">做了多少笔（交易次数）</div><div class="v" id="bsTrades">—</div><div class="d">3个月模拟里一共出手这么多次</div></div>
+        <div class="stat"><div class="k">赢了几成（胜率）</div><div class="v" id="bsWin">—</div><div class="d" id="bsWinD">—</div></div>
+        <div class="stat"><div class="k">一共赚多少（总盈亏）</div><div class="v" id="bsPnl">—</div><div class="d" id="bsPnlD">—</div></div>
+        <div class="stat"><div class="k">赚的是亏的几倍（盈亏比）</div><div class="v" id="bsPf">—</div><div class="d">赢到的钱 ÷ 亏掉的钱，大于1才算账算得过来</div></div>
+        <div class="stat"><div class="k">最倒霉时亏多少（最大回撤）</div><div class="v red" id="bsDd">—</div><div class="d">账上最多浮亏过这么多，先掂量受不受得了</div></div>
+        <div class="stat"><div class="k">平均每笔赚多少（单均期望）</div><div class="v" id="bsExp">—</div><div class="d" id="bsExpD">—</div></div>
       </div>
       <div class="params">
-        <label><span class="n">亏多少认赔</span><b id="slVal">—</b><input type="range" id="slRange" min="0.5" max="2" step="0.5" value="1"></label>
-        <label><span class="n">赚多少收手</span><b id="tpVal">—</b><input type="range" id="tpRange" min="1" max="3" step="0.5" value="1.5"></label>
+        <label><span class="n">亏多少认赔（止损）</span><b id="slVal">—</b><input type="range" id="slRange" min="0.5" max="2" step="0.5" value="1"></label>
+        <label><span class="n">赚多少收手（止盈）</span><b id="tpVal">—</b><input type="range" id="tpRange" min="1" max="3" step="0.5" value="1.5"></label>
         <div class="note" style="margin:2px 0 0">按"最近行情平均每小时上下窜的幅度"来定：比如现在平均每小时窜 $12，设 1.0 倍就是亏 $12 认赔。拖动滑块实时重算。</div>
       </div>
       <canvas class="chart" id="equityChart"></canvas>
@@ -239,10 +239,10 @@
         <summary>回测规则说明（点开看）</summary>
         <ol>
           <li><b>数据</b>：COMEX 黄金期货（GC=F）小时线，约当 XAUUSD 现货，过去约3个月。</li>
-          <li><b>什么时候做空</b>：短期均线掉到长期均线下面、价格也在长期均线下面、动能也偏弱 → 做空。</li>
-          <li><b>什么时候做多</b>：反过来，短期均线在上、价格在上、动能偏强 → 做多。</li>
+          <li><b>什么时候做空（做空信号）</b>：短期均线掉到长期均线下面、价格也在长期均线下面、动能也偏弱 → 做空。</li>
+          <li><b>什么时候做多（做多信号）</b>：反过来，短期均线在上、价格在上、动能偏强 → 做多。</li>
           <li><b>仓位</b>：同时最多 1 笔，0.01 手（金价每波动 1 美元 ≈ 赚或亏 1 美元）；出现反向信号就按收盘价平掉重开。</li>
-          <li><b>亏多少认赔 / 赚多少收手</b>：按"最近行情平均每小时上下窜的幅度"的倍数来定，滑块旁边会直接换算成大概的美元数。</li>
+          <li><b>亏多少认赔 / 赚多少收手（止损止盈）</b>：按"最近行情平均每小时上下窜的幅度"的倍数来定，滑块旁边会直接换算成大概的美元数。</li>
           <li><b>成本</b>：每笔扣 0.35 美元（点差 + 滑点）。</li>
           <li><b>重要</b>：AI 临盘的主观判断没法完全量化，这里测的只是"指标规则骨架"——看看这套思路历史上大概什么水平，仅供参考，不构成投资建议。</li>
         </ol>
@@ -823,9 +823,10 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     if(!stats.trades){ v="这段时间里这套规则一次都没出手，无话可说。"; }
     else{
       var win10=Math.round(stats.win_rate/10);
-      v="过去约3个月，这套规则一共做了 <b>"+stats.trades+"</b> 笔，10笔里大约赢 <b>"+win10+
-        "</b> 笔，"+(stats.pnl>=0? "一共赚了 <b>+$"+stats.pnl+"</b>": "一共亏了 <b>-$"+(-stats.pnl)+"</b>")+
-        "，"+(stats.expectancy>0? "平均每做一笔能赚 <b>$"+stats.expectancy+"</b>。": "平均每做一笔要亏 <b>$"+(-stats.expectancy)+"</b>。")+
+      v="先说清楚：<b>这不是我们实盘做过的单子</b>，是拿过去约3个月的历史行情、按这套规则的骨架模拟跑出来的成绩单（实盘记录在\"动态\"页的信号历史里）。"+
+        "<br>模拟结果：一共做了 <b>"+stats.trades+"</b> 笔（交易次数），10笔里大约赢 <b>"+win10+
+        "</b> 笔（胜率"+stats.win_rate+"%），"+(stats.pnl>=0? "一共赚了 <b>+$"+stats.pnl+"</b>": "一共亏了 <b>-$"+(-stats.pnl)+"</b>")+
+        "（总盈亏），"+(stats.expectancy>0? "平均每笔能赚 <b>$"+stats.expectancy+"</b>。": "平均每笔要亏 <b>$"+(-stats.expectancy)+"</b>。")+
         "<br>结论："+verdictText(stats);
     }
     $("btVerdict").innerHTML=v;
