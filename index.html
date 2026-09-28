@@ -110,6 +110,10 @@
   .params label span.n{min-width:118px; color:var(--muted);}
   .params label b{color:var(--gold); font-variant-numeric:tabular-nums; min-width:30px; text-align:right;}
   .params input[type=range]{flex:1; accent-color:var(--gold);}
+  .stat .d{font-size:11px; color:var(--dim); margin-top:3px; line-height:1.5;}
+  .verdict{font-size:14px; line-height:1.85; background:rgba(246,189,22,.07); border:1px solid rgba(246,189,22,.35);
+    border-radius:14px; padding:11px 13px; margin-bottom:12px;}
+  .verdict b{color:var(--gold);}
   details.rules{margin-top:12px; font-size:13px; color:var(--muted);
     background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:10px 14px;}
   details.rules summary{cursor:pointer; font-weight:700; color:var(--text); font-size:13.5px; padding:4px 0;}
@@ -210,37 +214,37 @@
       <a class="linkbtn" id="analysisFull" href="#" target="_blank" rel="noopener">在 Gitee 看完整研判记录 →</a>
     </div>
   </section>
-</main>
-</div>
 
   <!-- ===== 回测 ===== -->
   <section class="tab" id="tab-backtest">
     <div class="glass card">
       <div class="card-h">策略回测 <span class="tag">规则化近似</span></div>
+      <div class="verdict" id="btVerdict">加载中…</div>
       <div class="grid3" id="btStats">
-        <div class="stat"><div class="k">交易次数</div><div class="v" id="bsTrades">—</div></div>
-        <div class="stat"><div class="k">胜率</div><div class="v" id="bsWin">—</div></div>
-        <div class="stat"><div class="k">总盈亏</div><div class="v" id="bsPnl">—</div></div>
-        <div class="stat"><div class="k">盈亏比</div><div class="v" id="bsPf">—</div></div>
-        <div class="stat"><div class="k">最大回撤</div><div class="v red" id="bsDd">—</div></div>
-        <div class="stat"><div class="k">单均期望</div><div class="v" id="bsExp">—</div></div>
+        <div class="stat"><div class="k">做了多少笔</div><div class="v" id="bsTrades">—</div><div class="d">3个月里一共出手这么多次</div></div>
+        <div class="stat"><div class="k">赢了几成</div><div class="v" id="bsWin">—</div><div class="d" id="bsWinD">—</div></div>
+        <div class="stat"><div class="k">一共赚多少</div><div class="v" id="bsPnl">—</div><div class="d" id="bsPnlD">—</div></div>
+        <div class="stat"><div class="k">赚的是亏的几倍</div><div class="v" id="bsPf">—</div><div class="d">赢到的钱 ÷ 亏掉的钱，大于1才算账算得过来</div></div>
+        <div class="stat"><div class="k">最倒霉时亏多少</div><div class="v red" id="bsDd">—</div><div class="d">账上最多浮亏过这么多，先掂量受不受得了</div></div>
+        <div class="stat"><div class="k">平均每笔赚多少</div><div class="v" id="bsExp">—</div><div class="d" id="bsExpD">—</div></div>
       </div>
       <div class="params">
-        <label><span class="n">止损</span><b id="slVal">1.0</b><span class="n" style="min-width:0">× ATR</span><input type="range" id="slRange" min="0.5" max="2" step="0.5" value="1"></label>
-        <label><span class="n">止盈</span><b id="tpVal">1.5</b><span class="n" style="min-width:0">× ATR</span><input type="range" id="tpRange" min="1" max="3" step="0.5" value="1.5"></label>
+        <label><span class="n">亏多少认赔</span><b id="slVal">—</b><input type="range" id="slRange" min="0.5" max="2" step="0.5" value="1"></label>
+        <label><span class="n">赚多少收手</span><b id="tpVal">—</b><input type="range" id="tpRange" min="1" max="3" step="0.5" value="1.5"></label>
+        <div class="note" style="margin:2px 0 0">按"最近行情平均每小时上下窜的幅度"来定：比如现在平均每小时窜 $12，设 1.0 倍就是亏 $12 认赔。拖动滑块实时重算。</div>
       </div>
       <canvas class="chart" id="equityChart"></canvas>
       <div class="note">拖动滑块可实时重算回测，看看不同止损止盈下这套规则的表现。</div>
       <details class="rules">
         <summary>回测规则说明（点开看）</summary>
         <ol>
-          <li><b>数据</b>：COMEX 黄金期货（GC=F）小时线，约当 XAUUSD 现货。</li>
-          <li><b>做空信号</b>（K 线收盘时评估）：MA5 &lt; MA20 且收盘价 &lt; MA20 且 RSI(14) &lt; 55 且 MACD 柱 &lt; 0。</li>
-          <li><b>做多信号</b>：MA5 &gt; MA20 且收盘价 &gt; MA20 且 RSI(14) &gt; 45 且 MACD 柱 &gt; 0。</li>
-          <li><b>仓位</b>：同时最多 1 仓，0.01 手（每波动 1 美元 ≈ 盈亏 1 美元）；反向信号按收盘价平仓并反手。</li>
-          <li><b>止损止盈</b>：止损 = 系数 × ATR(14)，止盈 = 系数 × ATR(14)；同一根 K 线内先到止损按止损算（保守口径）。</li>
-          <li><b>成本</b>：每笔 0.35 美元（点差 + 滑点）。</li>
-          <li><b>重要</b>：AI 的临盘主观研判无法完全量化，这里测的是指标规则骨架——仅供参考，不构成投资建议。</li>
+          <li><b>数据</b>：COMEX 黄金期货（GC=F）小时线，约当 XAUUSD 现货，过去约3个月。</li>
+          <li><b>什么时候做空</b>：短期均线掉到长期均线下面、价格也在长期均线下面、动能也偏弱 → 做空。</li>
+          <li><b>什么时候做多</b>：反过来，短期均线在上、价格在上、动能偏强 → 做多。</li>
+          <li><b>仓位</b>：同时最多 1 笔，0.01 手（金价每波动 1 美元 ≈ 赚或亏 1 美元）；出现反向信号就按收盘价平掉重开。</li>
+          <li><b>亏多少认赔 / 赚多少收手</b>：按"最近行情平均每小时上下窜的幅度"的倍数来定，滑块旁边会直接换算成大概的美元数。</li>
+          <li><b>成本</b>：每笔扣 0.35 美元（点差 + 滑点）。</li>
+          <li><b>重要</b>：AI 临盘的主观判断没法完全量化，这里测的只是"指标规则骨架"——看看这套思路历史上大概什么水平，仅供参考，不构成投资建议。</li>
         </ol>
       </details>
       <div class="card-h" style="margin-top:16px">最近交易</div>
@@ -795,15 +799,36 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
 
   /* ================= 回测渲染 ================= */
   var curEquity = null;
+  function verdictText(s){
+    if(s.expectancy<=0) return "按这个成绩长期做下去是亏钱的，别照搬。";
+    if(s.profit_factor!==null && s.profit_factor<1.15) return "能赚，但赚得很薄，手续费稍高一点就可能白干。";
+    if(s.pnl>0 && s.max_dd/s.pnl>2) return "总体是赚的，但过程很刺激——最倒霉时亏的钱是最终利润的两倍多，心脏要够大。";
+    return "总体是赚的。不过这只是拿历史数据做的模拟，不代表以后也这样，仅供参考。";
+  }
   function renderBacktest(stats, equity, trades){
     $("bsTrades").textContent = stats.trades;
     $("bsWin").textContent = stats.win_rate+"%";
+    $("bsWinD").textContent = "10笔里大约赢"+Math.round(stats.win_rate/10)+"笔";
     var pnlEl=$("bsPnl");
     pnlEl.textContent = (stats.pnl>=0?"+":"")+"$"+stats.pnl;
     pnlEl.className = "v "+(stats.pnl>=0?"green":"red");
+    $("bsPnlD").textContent = stats.pnl>=0? "3个月下来一共赚了这么多" : "3个月下来一共亏了这么多";
     $("bsPf").textContent = stats.profit_factor===null? "—" : stats.profit_factor;
     $("bsDd").textContent = "$"+stats.max_dd;
-    $("bsExp").textContent = (stats.expectancy>=0?"+":"")+"$"+stats.expectancy;
+    var expEl=$("bsExp");
+    expEl.textContent = (stats.expectancy>=0?"+":"")+"$"+stats.expectancy;
+    expEl.className = "v "+(stats.expectancy>=0?"green":"red");
+    $("bsExpD").textContent = stats.expectancy>=0? "每做一笔，平均能赚这么多" : "每做一笔，平均要亏这么多";
+    var v;
+    if(!stats.trades){ v="这段时间里这套规则一次都没出手，无话可说。"; }
+    else{
+      var win10=Math.round(stats.win_rate/10);
+      v="过去约3个月，这套规则一共做了 <b>"+stats.trades+"</b> 笔，10笔里大约赢 <b>"+win10+
+        "</b> 笔，"+(stats.pnl>=0? "一共赚了 <b>+$"+stats.pnl+"</b>": "一共亏了 <b>-$"+(-stats.pnl)+"</b>")+
+        "，"+(stats.expectancy>0? "平均每做一笔能赚 <b>$"+stats.expectancy+"</b>。": "平均每做一笔要亏 <b>$"+(-stats.expectancy)+"</b>。")+
+        "<br>结论："+verdictText(stats);
+    }
+    $("btVerdict").innerHTML=v;
     curEquity = equity;
     drawEquity();
     $("btTrades").innerHTML = trades.slice(-12).reverse().map(function(tr){
@@ -852,11 +877,23 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     ctx.fillText(fmtT(curEquity[n-1][0]*1000).slice(0,5), padL+plotW-14, H-8);
     ctx.textAlign="left";
   }
+  var _atrLast=null;
+  function atrLast(){
+    if(_atrLast===null && typeof BT!=="undefined" && BT.klines){
+      var a=atrSeries(BT.klines);
+      for(var i=a.length-1;i>=0;i--){ if(a[i]!==null&&a[i]>0){ _atrLast=a[i]; break; } }
+      if(_atrLast===null) _atrLast=0;
+    }
+    return _atrLast||0;
+  }
+  function paramLabels(){
+    var slK=parseFloat($("slRange").value), tpK=parseFloat($("tpRange").value), a=atrLast();
+    $("slVal").textContent = a>0? "约 $"+r2(slK*a) : slK.toFixed(1)+"×ATR";
+    $("tpVal").textContent = a>0? "约 $"+r2(tpK*a) : tpK.toFixed(1)+"×ATR";
+  }
   function onParam(){
-    var slK=parseFloat($("slRange").value), tpK=parseFloat($("tpRange").value);
-    $("slVal").textContent=slK.toFixed(1);
-    $("tpVal").textContent=tpK.toFixed(1);
-    var r=simulate(BT.klines, slK, tpK);
+    paramLabels();
+    var r=simulate(BT.klines, parseFloat($("slRange").value), parseFloat($("tpRange").value));
     renderBacktest(r.stats, r.equity, r.trades.slice(-60));
   }
   $("slRange").addEventListener("input", onParam);
@@ -865,6 +902,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   /* ================= 初始化 ================= */
   if(typeof BT!=="undefined" && BT.klines){
     renderBacktest(BT.stats, BT.equity, BT.trades);
+    paramLabels();
     $("btMeta").textContent = "数据："+BT.meta.symbol+" · "+BT.meta.interval+" · "+BT.meta.from+" → "+BT.meta.to+
       "（"+BT.meta.bars+"根）· 0.01手 · 成本$0.35/笔 · 构建于 "+BT.meta.built_at+"（北京时间）。"+BT.meta.note;
     $("klinesInfo").textContent = "小时线 · 构建时数据";
