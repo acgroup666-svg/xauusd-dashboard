@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>黄金盯盘看板 · XAUUSD</title>
+<title>黄金信号 · XAUUSD</title>
 <style>
   :root{
     --bg:#05070d;
@@ -90,6 +90,9 @@
   .strat .k{color:var(--gold); font-size:12px; font-weight:700; margin-bottom:4px;}
   .sigline{margin-top:10px; text-align:left; font-size:13.5px; color:var(--muted);}
   .sigline b{color:var(--text);}
+  .sigmeta{font-size:12px; color:var(--dim); margin:0 0 8px; font-variant-numeric:tabular-nums;}
+  .sigmeta b{color:var(--muted); font-weight:600;}
+  #entryBody .stat .v{font-size:16px;}
   .reason{font-size:13.5px; color:var(--muted); line-height:1.75;}
   /* ---- 图表 ---- */
   canvas.chart{width:100%; display:block; border-radius:14px; touch-action:pan-y;}
@@ -165,24 +168,21 @@
 <main>
   <div class="errbar" id="errbar">数据拉取异常，稍后自动重试</div>
 
-  <!-- ===== 总览 ===== -->
+  <!-- ===== 信号（公开页） ===== -->
   <section class="tab on" id="tab-overview">
     <header class="glass topbar">
-      <div><div class="title">黄金盯盘</div><div class="sub">XAUUSD · 5分钟研判 · EA自动跟单</div></div>
+      <div><div class="title">黄金信号</div><div class="sub">XAUUSD · 每5分钟研判</div></div>
       <div class="pill" id="statusPill"><span class="dot"></span><span id="statusText">连接中…</span></div>
     </header>
     <div class="glass hero">
       <div class="view-badge view-未知" id="viewBadge">未知</div>
+      <div class="sigmeta"><b id="sigId">—</b> · <span id="sigTime">—</span></div>
       <div class="price"><span id="livePrice">—</span><small>美元/盎司</small></div>
       <div class="upd" id="updTime"></div>
-      <div class="grid4">
-        <div class="stat"><div class="k">入场</div><div class="v" id="stEntry">—</div></div>
-        <div class="stat"><div class="k">信号编号</div><div class="v small" id="sigId">—</div></div>
-        <div class="stat"><div class="k">止损</div><div class="v red" id="stSL">—</div></div>
-        <div class="stat"><div class="k">止盈</div><div class="v green" id="stTP">—</div></div>
-      </div>
-      <div class="strat" id="stratBox" style="display:none"><div class="k">生效策略</div><div id="stratText"></div></div>
-      <div class="sigline" id="sigLine"></div>
+    </div>
+    <div class="glass card">
+      <div class="card-h">还没入场？建议这样跟 <span class="tag">仅供参考</span></div>
+      <div id="entryBody"><div class="note">加载中…</div></div>
     </div>
     <div class="glass card">
       <div class="card-h">研判依据 <button class="linkbtn" data-goto="tab-analysis">看详细解读 →</button></div>
@@ -219,6 +219,11 @@
 
   <!-- ===== 持仓 ===== -->
   <section class="tab" id="tab-positions">
+    <div class="glass card" id="myStratBox" style="display:none">
+      <div class="card-h">我的入场档案 <span class="tag">开仓时锁定</span></div>
+      <div class="strat" style="margin-top:0"><div class="k">生效策略</div><div id="myStratText"></div></div>
+      <div class="note">这是开仓那一刻锁定的计划；下面"实时持仓"是 EA 账户上的真实快照。一个看计划，一个看实盘。</div>
+    </div>
     <div class="glass card">
       <div class="card-h">实时持仓 <span class="tag" id="posAge">—</span></div>
       <div id="livePos"><div class="note">加载中…</div></div>
@@ -264,7 +269,7 @@
 
 <nav class="tabbar glass">
   <button data-tab="tab-overview" class="on">
-    <svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>总览
+    <svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>信号
   </button>
   <button data-tab="tab-chart">
     <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>图表
@@ -308,6 +313,12 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     var h=Math.floor(m/60);
     if(h<24) return h+" 小时前";
     return Math.floor(h/24)+" 天前";
+  }
+  function fmtBJ(ts){ // 统一按北京时间格式化，不随看的人的时区变
+    try{
+      return new Date(ts).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false,
+        year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(/\//g,"-");
+    }catch(e){ return ""; }
   }
   function isResting(){
     var bj = new Date(Date.now() + 8*3600*1000);
@@ -373,29 +384,18 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     viewBadge.textContent = view;
     viewBadge.className = "view-badge view-"+view;
     var sl = sig.sl||0, tp = sig.tp||0;
-    $("stSL").textContent = sl? sl : "—";
-    $("stTP").textContent = tp? tp : "—";
     var pm = String(sig.reason||"").match(/现价([\d.]+)/);
-    $("livePrice").textContent = pm? pm[1] : "—";
+    var price = pm? pm[1] : ((liveKlines&&liveKlines.length)? liveKlines[liveKlines.length-1][4] : "—");
+    $("livePrice").textContent = price;
 
     // ---- 1-当前状态.md ----
     var md = content("1-当前状态.md");
     var m;
+    // 入场档案搬到持仓页，首页不再出现
     m = md.match(/^-\s*生效策略：(.+)$/m);
-    if(m){
-      var s = m[1].trim();
-      $("stratBox").style.display = "";
-      $("stratText").textContent = s;
-      var em = s.match(/入场约?([\d.]+)/);
-      $("stEntry").textContent = em? em[1] : (s.indexOf("空仓")>=0 ? "空仓" : "—");
-    } else { $("stratBox").style.display="none"; }
-    m = md.match(/^-\s*最新信号：(.+)$/m);
-    if(m){
-      var line = m[1].trim();
-      var sm = line.match(/(做多|做空|观望)/);
-      $("sigLine").innerHTML = "最新信号：<b>"+esc(sm?sm[1]:view)+"</b> ｜ 止损 <b>"+esc(sl||"—")+"</b> ｜ 止盈 <b>"+esc(tp||"—")+"</b>";
-    } else {
-      $("sigLine").innerHTML = "最新信号：<b>"+esc(view)+"</b>";
+    if($("myStratBox")){
+      if(m){ $("myStratBox").style.display=""; $("myStratText").textContent = m[1].trim(); }
+      else { $("myStratBox").style.display="none"; }
     }
     var reason = sig.reason || (md.match(/^-\s*依据：(.+)$/m)||[])[1] || "";
     $("reasonText").textContent = reason || "—";
@@ -403,8 +403,24 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     var uts = m? parseBJ(m[1]) : (sig.epoch? sig.epoch*1000 : 0);
     lastUpdTs = uts||Date.now();
     $("updTime").textContent = m? ("更新于 "+m[1]+"（"+ago(uts)+"）") : "";
-    $("sigId").textContent = sig.signal_id||"—";
+    $("sigId").textContent = "编号 "+(sig.signal_id||"—");
+    $("sigTime").textContent = sig.epoch? ("发布于 "+fmtBJ(sig.epoch*1000)+"（北京时间）") : "";
     setStatus();
+
+    // ---- 还没入场？建议这样跟 ----
+    (function(){
+      var eb = $("entryBody");
+      if(view==="观望"||view==="未知"){
+        eb.innerHTML = '<div class="note" style="margin-top:0">当前'+esc(view)+'，不建议入场。方向明确了再来，少动多看。</div>';
+        return;
+      }
+      var zone = (sig.entry && sig.entry!=="-")? sig.entry : ("现价 "+price+" 附近");
+      eb.innerHTML = '<div class="grid3">'+
+        '<div class="stat"><div class="k">建议入场区</div><div class="v">'+esc(zone)+'</div></div>'+
+        '<div class="stat"><div class="k">止损</div><div class="v red">'+esc(sl||"—")+'</div></div>'+
+        '<div class="stat"><div class="k">止盈</div><div class="v green">'+esc(tp||"—")+'</div></div></div>'+
+        '<div class="note">价格是活的，信号发出后可能已经走了一段：偏离入场区太多就别追，等下一次信号。关键位参考：阻力 4420，支撑 4278（已跌破）。模拟盘研究用途，不构成投资建议。</div>';
+    })();
 
     // ---- 4-研判记录.md：最新一轮详细解读 ----
     renderAnalysis(content("4-研判记录.md"));
