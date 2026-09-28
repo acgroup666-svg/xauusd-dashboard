@@ -259,7 +259,7 @@
       <div class="plan" id="planText" style="margin-top:10px">加载中…</div>
     </details>
     <footer>
-      数据源：Gitee 代码片段（信号）· Yahoo Finance（K 线）<br>
+      数据由云端每3分钟同步到本页面（与页面同源，不再直连 Gitee）<br>
       <a id="srcLink" href="#" target="_blank" rel="noopener">查看原始数据 →</a><br>
       模拟盘研究用途，不构成投资建议
     </footer>
@@ -344,9 +344,9 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     b.addEventListener("click", function(){ showTab(b.dataset.goto); });
   });
 
-  /* ================= Gist 数据拉取 ================= */
-  var GIST_ID = "ujtyowrsfmc1k58pax39788";
-  var API = "https://gitee.com/api/v5/gists/" + GIST_ID;
+  /* ================= 数据拉取（同源镜像，不再直连 Gitee 防 IP 被封） ================= */
+  var GIST_ID = "ujtyowrsfmc1k58pax39788"; // 仅用于页脚"查看原始数据"链接
+  var API_BUNDLE = "data/bundle.json"; // 云端每3分钟把 Gitee 数据镜像到这里
   var REFRESH_SEC = 90;
   var statusPill=$("statusPill"), statusText=$("statusText");
   var lastUpdTs = 0;
@@ -364,7 +364,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   var liveKlines = null; // 来自 gist 的 xauusd-klines.json
   function render(data){
     var files = data.files || {};
-    function content(name){ return files[name] ? (files[name].content||"") : ""; }
+    function content(name){ return files[name]||""; } // bundle 里直接是文件内容字符串
 
     // ---- K 线（图表用；失败则用内置兜底）----
     try{
@@ -531,11 +531,11 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   }
   function load(){
     $("countdown").textContent = "刷新中…";
-    fetch(API, {cache:"no-store"})
+    fetch(API_BUNDLE+"?t="+Date.now(), {cache:"no-store"})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(data){
+      .then(function(b){
         $("errbar").style.display="none";
-        render(data);
+        render({files:((b&&b.files)||{})});
         left=REFRESH_SEC; $("countdown").textContent = left+" 秒后刷新";
       })
       .catch(function(){
