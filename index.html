@@ -135,12 +135,12 @@
   </details>
 
   <div class="src" style="text-align:center; margin:18px 0 6px;">
-    数据来源：<a id="srcLink" href="#" target="_blank" rel="noopener">Gitee 公开数据页</a> · 每 30 秒自动刷新
+    数据来源：<a id="srcLink" href="#" target="_blank" rel="noopener">Gitee 公开数据页</a> · 每 90 秒自动刷新
   </div>
 </div>
 
 <footer class="bar">
-  <span class="count" id="countdown">30 秒后刷新</span>
+  <span class="count" id="countdown">90 秒后刷新</span>
   <button class="refresh-btn" id="refreshBtn">⟳ 立即刷新</button>
 </footer>
 
@@ -149,7 +149,7 @@
   "use strict";
   var GIST_ID = "ujtyowrsfmc1k58pax39788";
   var API = "https://gitee.com/api/v5/gists/" + GIST_ID;
-  var REFRESH_SEC = 30;
+  var REFRESH_SEC = 90;
 
   var $ = function(id){ return document.getElementById(id); };
   var viewBadge=$("viewBadge"), stEntry=$("stEntry"), stPrice=$("stPrice"),
