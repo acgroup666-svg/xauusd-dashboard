@@ -386,6 +386,10 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     var sl = sig.sl||0, tp = sig.tp||0;
     var pm = String(sig.reason||"").match(/现价([\d.]+)/);
     var price = pm? pm[1] : ((liveKlines&&liveKlines.length)? liveKlines[liveKlines.length-1][4] : "—");
+    var priceTime = null;
+    try{ var pj = JSON.parse(content("xauusd-price.json"));
+      if(pj && pj.price){ price = pj.price; priceTime = pj.time || null; }
+    }catch(e){}
     $("livePrice").textContent = price;
 
     // ---- 1-当前状态.md ----
@@ -400,6 +404,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     var reason = sig.reason || (md.match(/^-\s*依据：(.+)$/m)||[])[1] || "";
     $("reasonText").textContent = reason || "—";
     m = md.match(/^-\s*更新于：(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/m);
+    if(priceTime) m = [null, priceTime];
     var uts = m? parseBJ(m[1]) : (sig.epoch? sig.epoch*1000 : 0);
     lastUpdTs = uts||Date.now();
     $("updTime").textContent = m? ("更新于 "+m[1]+"（"+ago(uts)+"）") : "";
