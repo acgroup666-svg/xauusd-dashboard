@@ -79,6 +79,7 @@
   .upd{font-size:12px; color:var(--dim); margin-bottom:14px;}
   .grid4{display:grid; grid-template-columns:1fr 1fr; gap:9px; text-align:left;}
   .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; text-align:left;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:9px; text-align:left;}
   .stat{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:10px 12px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.1);}
   .stat .k{font-size:11px; color:var(--muted); margin-bottom:3px;}
@@ -179,10 +180,23 @@
       <div class="sigmeta"><b id="sigId">—</b> · <span id="sigTime">—</span></div>
       <div class="price"><span id="livePrice">—</span><small>美元/盎司</small></div>
       <div class="upd" id="updTime"></div>
+      <div class="upd" id="nextAnalysis"></div>
     </div>
     <div class="glass card">
       <div class="card-h">还没入场？建议这样跟 <span class="tag">仅供参考</span></div>
       <div id="entryBody"><div class="note">加载中…</div></div>
+    </div>
+    <div class="glass card">
+      <div class="card-h">动态关键位 <small style="font-weight:400;color:var(--dim);font-size:11px">（现货口径，每轮更新）</small></div>
+      <div class="grid2">
+        <div class="stat"><div class="k">阻力</div><div class="v red" id="keyRes">—</div></div>
+        <div class="stat"><div class="k">支撑</div><div class="v green" id="keySup">—</div></div>
+      </div>
+      <div class="upd" id="keyTime"></div>
+    </div>
+    <div class="glass card">
+      <div class="card-h">大事件倒计时</div>
+      <div id="eventBody"><div class="note">加载中…</div></div>
     </div>
     <div class="glass card">
       <div class="card-h">研判依据 <small style="font-weight:400;color:var(--dim);font-size:11px">（信号发布时的快照）</small> <button class="linkbtn" data-goto="tab-analysis">看详细解读 →</button></div>
@@ -251,7 +265,7 @@
       <div id="timeline"><div class="note">加载中…</div></div>
     </div>
     <div class="glass card">
-      <div class="card-h">运行心跳 <button class="linkbtn" id="refreshBtn">立即刷新</button></div>
+      <div class="card-h">运行状态 <button class="linkbtn" id="refreshBtn">立即刷新</button></div>
       <div id="heartbeat"><div class="note">加载中…</div></div>
     </div>
     <details class="glass card">
@@ -392,6 +406,32 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     try{ var pj = JSON.parse(content("xauusd-price.json"));
       if(pj && pj.price){ price = pj.price; priceTime = pj.time || null; }
     }catch(e){}
+    priceEpochMs = (pj && pj.epoch) ? pj.epoch*1000 : 0;
+    // ---- 动态关键位 / 大事件倒计时（price.json 富化字段，手动跟单用）----
+    (function(){
+      var kl = (pj && pj.key_levels) || null;
+      if(kl && kl.resistance){
+        $("keyRes").textContent = kl.resistance;
+        $("keySup").textContent = kl.support;
+        $("keyTime").textContent = "更新于 "+(kl.time||"");
+      } else {
+        $("keyTime").textContent = "暂无（等下一轮研判）";
+      }
+      var nev = (pj && pj.next_event) || null;
+      var eb2 = $("eventBody");
+      if(nev && nev.name){
+        var boCls = /已进入/.test(nev.blackout||"") ? "red" : "";
+        eb2.innerHTML =
+          '<div class="pos-line"><b>'+esc(nev.name)+'</b>'+
+          (nev.importance? ' <span class="tag">'+esc(nev.importance)+'重要</span>' : "")+'</div>'+
+          '<div class="grid3" style="margin-top:9px">'+
+          '<div class="stat"><div class="k">事件时间</div><div class="v small">'+esc(nev.time_bj)+'</div></div>'+
+          '<div class="stat"><div class="k">倒计时</div><div class="v">'+esc(nev.countdown)+'</div></div>'+
+          '<div class="stat"><div class="k">黑幕</div><div class="v small '+boCls+'">'+esc(nev.blackout||"—")+'</div></div></div>';
+      } else {
+        eb2.innerHTML = '<div class="note">近期无重要事件</div>';
+      }
+    })();
     $("livePrice").textContent = price;
 
     // ---- 1-当前状态.md ----
@@ -422,11 +462,14 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
         return;
       }
       var zone = (sig.entry && sig.entry!=="-")? sig.entry : ("现价 "+price+" 附近");
+      var klRef = (typeof pj!=="undefined" && pj && pj.key_levels && pj.key_levels.resistance)
+        ? ("关键位参考：阻力 "+pj.key_levels.resistance+"，支撑 "+pj.key_levels.support+"（动态更新）。")
+        : "关键位参考：暂无（等下一轮研判）。";
       eb.innerHTML = '<div class="grid3">'+
         '<div class="stat"><div class="k">建议入场区</div><div class="v">'+esc(zone)+'</div></div>'+
         '<div class="stat"><div class="k">止损</div><div class="v red">'+esc(sl||"—")+'</div></div>'+
         '<div class="stat"><div class="k">止盈</div><div class="v green">'+esc(tp||"—")+'</div></div></div>'+
-        '<div class="note">价格是活的，信号发出后可能已经走了一段：偏离入场区太多就别追，等下一次信号。关键位参考：阻力 4420，支撑 4278（已跌破）。模拟盘研究用途，不构成投资建议。</div>';
+        '<div class="note">价格是活的，信号发出后可能已经走了一段：偏离入场区太多就别追，等下一次信号。'+klRef+'模拟盘研究用途，不构成投资建议。</div>';
     })();
 
     // ---- 3-研判记录.md：最新一轮详细解读 ----
@@ -490,17 +533,16 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
         (t.review? '<div class="review">'+esc(t.review)+'</div>' : "")+'</div>';
     }).join("") : '<div class="note">还没有平仓记录——第一笔还在持仓中，平仓后会自动记进来。</div>';
 
-    // ---- 运行心跳 ----
-    var beats = [];
+    // ---- 运行状态（去内部化：单行状态，不再列逐轮心跳） ----
+    var hbT = 0, hbV = "";
     md.split("\n").forEach(function(ln){
-      var bm = ln.match(/^-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ｜ 研判完成 ｜ 观点：(\S+) ｜ (.+)$/);
-      if(bm) beats.push({t:bm[1], v:bm[2], a:bm[3]});
+      var bm = ln.match(/^-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ｜ 研判完成 ｜ 观点：(\S+)/);
+      if(bm){ var t = parseBJ(bm[1]); if(t > hbT){ hbT = t; hbV = bm[2]; } }
     });
-    $("heartbeat").innerHTML = beats.length ? beats.slice(0,12).map(function(b){
-      return '<div class="hb-row"><span class="t">'+esc(b.t.slice(5))+'</span>'+
-        '<span class="dtag '+b.v+'">'+esc(b.v)+'</span>'+
-        '<span class="a">'+esc(b.a)+'</span></div>';
-    }).join("") : '<div class="note">暂无心跳记录</div>';
+    var hbOk = hbT && (Date.now() - hbT < 10*60*1000);
+    $("heartbeat").innerHTML = '<div class="hb-row"><span>运行状态：<b class="'+(hbOk?"green":"red")+'">'+(hbOk?"正常":"异常")+'</b></span>'+
+      (hbT? '<span class="t">最后研判 '+esc(ago(hbT))+'</span>' : '<span class="t">暂无研判记录</span>')+
+      (hbV? '<span class="dtag '+hbV+'">'+esc(hbV)+'</span>' : "")+'</div>';
 
     $("planText").textContent = content("5-交易规则.md") || "暂无";
   }
@@ -531,10 +573,20 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   }
 
   var timer=null, left=REFRESH_SEC;
+  var priceEpochMs = 0; // 最近一次 price.json 的发布时间（毫秒），用于"距下次研判"倒计时
   function tick(){
     left--;
     if(left<=0){ load(); return; }
     $("countdown").textContent = left+" 秒后刷新";
+    var na = $("nextAnalysis");
+    if(na){
+      if(priceEpochMs){
+        var ms = priceEpochMs + 5*60*1000 - Date.now();
+        na.textContent = ms > 0
+          ? ("距下次研判约 "+Math.floor(ms/60000)+" 分 "+Math.floor(ms%60000/1000)+" 秒")
+          : "研判更新中…";
+      } else { na.textContent = ""; }
+    }
   }
   function load(){
     $("countdown").textContent = "刷新中…";
