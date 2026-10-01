@@ -183,7 +183,7 @@
       <div class="upd" id="nextAnalysis"></div>
     </div>
     <div class="glass card">
-      <div class="card-h">还没入场？建议这样跟 <span class="tag">仅供参考</span></div>
+      <div class="card-h">实时研判进场方向 <span class="tag">仅供参考</span></div>
       <div id="entryBody"><div class="note">加载中…</div></div>
     </div>
     <div class="glass card">
@@ -227,7 +227,6 @@
       <div class="card-h">最新研判解读 <span class="tag" id="analysisTs">—</span></div>
       <div class="a-meta" id="analysisMeta"></div>
       <div class="a-body" id="analysisBody"><div class="note">加载中…</div></div>
-      <a class="linkbtn" id="analysisFull" href="#" target="_blank" rel="noopener">在 Gitee 看完整研判记录 →</a>
     </div>
   </section>
 
@@ -273,8 +272,6 @@
       <div class="plan" id="planText" style="margin-top:10px">加载中…</div>
     </details>
     <footer>
-      数据源：Gitee 代码片段（信号）· Yahoo Finance（K 线）<br>
-      <a id="srcLink" href="#" target="_blank" rel="noopener">查看原始数据 →</a><br>
       模拟盘研究用途，不构成投资建议
     </footer>
   </section>
@@ -366,8 +363,6 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   var REFRESH_SEC = 90;
   var statusPill=$("statusPill"), statusText=$("statusText");
   var lastUpdTs = 0;
-  $("srcLink").href = "https://gitee.com/ac6668/codes/" + GIST_ID;
-  $("analysisFull").href = "https://gitee.com/ac6668/codes/" + HUMAN_GIST_ID;
 
   function setStatus(){
     statusPill.className = "pill";
@@ -454,7 +449,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     $("sigTime").textContent = sig.epoch? ("发布于 "+fmtBJ(sig.epoch*1000)+"（北京时间）") : "";
     setStatus();
 
-    // ---- 还没入场？建议这样跟 ----
+    // ---- 实时研判进场方向 ----
     (function(){
       var eb = $("entryBody");
       if(view==="观望"||view==="未知"){
