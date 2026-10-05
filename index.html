@@ -484,14 +484,14 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     // ---- 2-信号历史.md ----
     var items = [];
     content("2-信号历史.md").split("\n").forEach(function(ln){
-      var hm = ln.match(/^-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) ｜ 观点：(做多|做空|观望) ｜ 止损 ([\d.]+) ｜ 止盈 ([\d.]+) ｜ (.+)$/);
-      if(hm) items.push({t:hm[1], v:hm[2], sl:hm[3], tp:hm[4], note:hm[5]});
+      var hm = ln.match(/^-\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) ｜ 观点：(做多|做空|观望)(（[^）]*）)?(?: ｜ 止损 ([\d.]+) ｜ 止盈 ([\d.]+))?(?: ｜(.*))?$/);
+      if(hm) items.push({t:hm[1], v:hm[2], sl:hm[4]||"", tp:hm[5]||"", note:(hm[6]||"").trim()});
     });
     $("timeline").innerHTML = items.length ? items.slice(0,20).map(function(it){
       return '<div class="tl-item"><div class="t">'+esc(it.t)+'</div>'+
-        '<div class="row"><span class="dtag '+it.v+'">'+it.v+'</span>'+
-        '<span class="nums">止损 <b>'+esc(it.sl)+'</b> ｜ 止盈 <b>'+esc(it.tp)+'</b></span></div>'+
-        '<div class="note">'+esc(it.note)+'</div></div>';
+        '<div class="row"><span class="dtag '+it.v+'">'+esc(it.v)+'</span>'+
+        '<span class="nums">'+(it.sl? ("止损 <b>"+esc(it.sl)+"</b> ｜ 止盈 <b>"+esc(it.tp)+"</b>") : "空仓观望")+'</span></div>'+
+        (it.note? '<div class="note">'+esc(it.note)+'</div>' : "")+'</div>';
     }).join("") : '<div class="note">暂无历史记录</div>';
 
     // ---- 实时持仓 ----
