@@ -213,8 +213,8 @@
       <div class="legend">
         <span><i style="background:var(--gold)"></i>MA5</span>
         <span><i style="background:var(--blue)"></i>MA20</span>
-        <span><i style="background:var(--red)"></i>阻力 4420</span>
-        <span><i style="background:var(--green)"></i>支撑 4278（已跌破）</span>
+        <span><i style="background:var(--red)"></i>阻力 <b id="lgRes">—</b></span>
+        <span><i style="background:var(--green)"></i>支撑 <b id="lgSup">—</b></span>
       </div>
       <canvas class="chart" id="rsiChart"></canvas>
       <div class="note" id="chartNote">点击图表可查看任意一根 K 线的开高低收。数据每 30 分钟自动更新。</div>
@@ -270,6 +270,14 @@
     <details class="glass card">
       <summary>交易规则</summary>
       <div class="plan" id="planText" style="margin-top:10px">加载中…</div>
+    </details>
+    <details class="glass card">
+      <summary>交易复盘</summary>
+      <div class="plan" id="reviewText" style="margin-top:10px">加载中…</div>
+    </details>
+    <details class="glass card">
+      <summary>每周总结</summary>
+      <div class="plan" id="weeklyText" style="margin-top:10px">加载中…</div>
     </details>
     <footer>
       模拟盘研究用途，不构成投资建议
@@ -358,7 +366,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   /* ================= Gist 数据拉取 ================= */
   var GIST_ID = "ujtyowrsfmc1k58pax39788";
   var API = "https://gitee.com/api/v5/gists/" + GIST_ID;
-  var HUMAN_GIST_ID = "7fetoxz2haky63wmpvd0191";
+  var HUMAN_GIST_ID = "hya7jwkos8n5tveicmqrg40";
   var HUMAN_API = "https://gitee.com/api/v5/gists/" + HUMAN_GIST_ID;
   var REFRESH_SEC = 90;
   var statusPill=$("statusPill"), statusText=$("statusText");
@@ -373,6 +381,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
   }
 
   var liveKlines = null; // 来自 gist 的 xauusd-klines.json
+  var dynLevels = null; // 来自 xauusd-price.json 的 key_levels（动态关键位，每轮更新）
   function render(data){
     var files = data.files || {};
     function content(name){ return files[name] ? (files[name].content||"") : ""; }
@@ -402,6 +411,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
       if(pj && pj.price){ price = pj.price; priceTime = pj.time || null; }
     }catch(e){}
     priceEpochMs = (pj && pj.epoch) ? pj.epoch*1000 : 0;
+    dynLevels = (pj && pj.key_levels) || null; // 图表关键位线用，每轮更新
     // ---- 动态关键位 / 大事件倒计时（price.json 富化字段，手动跟单用）----
     (function(){
       var kl = (pj && pj.key_levels) || null;
@@ -409,6 +419,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
         $("keyRes").textContent = kl.resistance;
         $("keySup").textContent = kl.support;
         $("keyTime").textContent = "更新于 "+(kl.time||"");
+        if($("lgRes")){ $("lgRes").textContent = kl.resistance; $("lgSup").textContent = kl.support; }
       } else {
         $("keyTime").textContent = "暂无（等下一轮研判）";
       }
@@ -539,7 +550,9 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
       (hbT? '<span class="t">最后研判 '+esc(ago(hbT))+'</span>' : '<span class="t">暂无研判记录</span>')+
       (hbV? '<span class="dtag '+hbV+'">'+esc(hbV)+'</span>' : "")+'</div>';
 
-    $("planText").textContent = content("5-交易规则.md") || "暂无";
+    $("planText").textContent = content("交易规则.md") || "暂无";
+    $("reviewText").textContent = content("4-交易复盘.md") || "暂无";
+    $("weeklyText").textContent = content("5-每周总结.md") || "暂无";
   }
 
   function renderAnalysis(md){
@@ -661,7 +674,13 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
     kl.forEach(function(k){ lo=Math.min(lo,k[3]); hi=Math.max(hi,k[2]); });
     ma5.forEach(function(v){ if(v!==null){lo=Math.min(lo,v); hi=Math.max(hi,v);} });
     ma20.forEach(function(v){ if(v!==null){lo=Math.min(lo,v); hi=Math.max(hi,v);} });
-    [4420,4278].forEach(function(lv){ if(lv>lo-60&&lv<hi+60){ lo=Math.min(lo,lv); hi=Math.max(hi,lv);} });
+    var lvls = [];
+    if(dynLevels){
+      var _r = parseFloat(dynLevels.resistance), _s = parseFloat(dynLevels.support);
+      if(_r>0) lvls.push({v:_r, label:"阻力", color:"rgba(255,93,110,.75)"});
+      if(_s>0) lvls.push({v:_s, label:"支撑", color:"rgba(43,222,143,.7)"});
+    }
+    lvls.forEach(function(o){ var lv=o.v; if(lv>lo-60&&lv<hi+60){ lo=Math.min(lo,lv); hi=Math.max(hi,lv);} });
     var pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
     function X(i){ return padL + (i+0.5)*plotW/n; }
     function Y(p){ return padT + (1-(p-lo)/(hi-lo))*plotH; }
@@ -689,8 +708,7 @@ var BT = {"meta": {"symbol": "GC=F（COMEX黄金期货，约当 XAUUSD）", "int
       ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+plotW,y); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=color; ctx.fillText(label+" "+lv, padL+6, y-8);
     }
-    hline(4420, "rgba(255,93,110,.75)", "阻力");
-    hline(4278, "rgba(43,222,143,.7)", "支撑");
+    lvls.forEach(function(o){ hline(o.v, o.color, o.label); });
     // K 线
     var cw = plotW/n, bw = Math.max(1.5, cw*0.62);
     for(var i=0;i<n;i++){
