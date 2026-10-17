@@ -215,6 +215,14 @@
 
       /* 回放 */
       .rep-timing { font-size: 12px; color: var(--ink-2); margin: -2px 0 12px; }
+      .export-row { display: flex; gap: 8px; margin-top: 12px; }
+      .export-btn {
+        flex: 1 1 0; appearance: none; border: 1px solid var(--gold); background: transparent;
+        color: var(--gold-strong); border-radius: 10px; font: inherit; font-size: 14.5px; font-weight: 700;
+        padding: 11px 8px; cursor: pointer; letter-spacing: .03em;
+      }
+      .export-btn:active { filter: brightness(1.15); }
+      @media (max-width: 480px) { .export-row { flex-direction: column; } }
       .replay-open-btn {
         width: 100%; appearance: none; border: 1px solid var(--gold); background: transparent;
         color: var(--gold-strong); border-radius: 10px; font: inherit; font-size: 15.5px; font-weight: 700;
@@ -407,6 +415,10 @@
           <p class="rep-meta" id="repMeta"></p>
           <p class="rep-timing" id="repTiming"></p>
           <div class="stats" id="stats"></div>
+          <div class="export-row">
+            <button type="button" class="export-btn" id="expCsvBtn">导出交易明细 CSV</button>
+            <button type="button" class="export-btn" id="expMdBtn">导出回测报告 MD</button>
+          </div>
         </section>
 
         <section aria-label="净值曲线">
@@ -843,6 +855,137 @@
           $('report').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
+        /* ---------- 导出：交易明细 CSV / 完整报告 MD ----------
+           数据全部取自本次回测完成时存下的 lastRun（trades + metrics + 本次参数），
+           不重算、不读别处；文件名带导出日期（北京）与天数 / TPM / 本金。 */
+        function dlFile(name, text, mime) {
+          var blob = new Blob([text], { type: mime });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        }
+        function exportBase(kind) {
+          var d = new Date(Date.now() + 8 * 3600 * 1000);
+          function p(x) { return (x < 10 ? '0' : '') + x; }
+          var ds = d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate());
+          return kind + '-' + ds + '-' + lastRun.daysSel + 'd-tpm' + lastRun.tpm.toFixed(1) + '-cap' + lastRun.capital;
+        }
+        function csvCell(v) {
+          var s = String(v);
+          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+        function buildTradesCSV() {
+          var lines = ['序号,开仓时间(北京时间),平仓时间(北京时间),方向,扳机,开仓价,平仓价,退出原因,盈亏(USDT),持仓分钟'];
+          lastRun.trades.forEach(function (t, i) {
+            lines.push([
+              i + 1, fmtDateTime(t.entryTs), fmtDateTime(t.exitTs),
+              t.dir === 1 ? '做多' : '做空', t.trigger,
+              t.entry.toFixed(2), t.exit.toFixed(2),
+              REASONS[t.reason] || t.reason, t.pnl.toFixed(2), t.holdMin
+            ].map(csvCell).join(','));
+          });
+          return '\uFEFF' + lines.join('\r\n') + '\r\n'; /* 前置 BOM 让 Excel 正确识别 UTF-8 中文 */
+        }
+        function groupStats(keyFn) {
+          var g = {}, order = [];
+          lastRun.trades.forEach(function (t) {
+            var k = keyFn(t);
+            if (!g[k]) { g[k] = { count: 0, wins: 0, sum: 0 }; order.push(k); }
+            g[k].count++;
+            if (t.pnl > 0) g[k].wins++;
+            g[k].sum += t.pnl;
+          });
+          return { g: g, order: order };
+        }
+        function mdRow(cells) { return '| ' + cells.join(' | ') + ' |'; }
+        function buildReportMD() {
+          var r = lastRun, m = r.metrics, cap = r.capital;
+          var trigOn = ['A', 'B', 'C', 'D'].filter(function (k) { return r.enabled[k]; }).join('、') || '无';
+          var L = [];
+          L.push('# 2.0 回测实验室 · 回测报告');
+          L.push('');
+          L.push('导出时间：' + fmtDateTime(Date.now()) + '（北京时间）');
+          L.push('');
+          L.push('## 参数与数据');
+          L.push('');
+          L.push(mdRow(['项目', '值']));
+          L.push('| --- | --- |');
+          L.push(mdRow(['本金', cap.toLocaleString('en-US') + ' USDT']));
+          L.push(mdRow(['回测天数', r.daysSel + ' 天']));
+          L.push(mdRow(['TPM 止盈倍数', r.tpm.toFixed(1) + ' ×ATR（15m 次级波段单与扳机 D 自动用 min(TPM, 1.2)）']));
+          L.push(mdRow(['启用扳机', trigOn]));
+          L.push(mdRow(['数据标的', 'PAXGUSDT · 1 分钟 K 线（Binance 公开接口）']));
+          L.push(mdRow(['数据区间', fmtDate(r.dataStartTs) + ' → ' + fmtDate(r.endTs) + '，共 ' + r.barCount.toLocaleString('en-US') + ' 根']));
+          L.push(mdRow(['回测窗口', fmtDate(r.startTs) + ' → ' + fmtDate(r.endTs)]));
+          L.push(mdRow(['数据来源', r.source]));
+          L.push(mdRow(['数据指纹', r.fp || '—']));
+          L.push(mdRow(['计算耗时', r.elapsed + ' ms（浏览器内逐根计算）']));
+          L.push('');
+          L.push('## 总览统计');
+          L.push('');
+          L.push(mdRow(['指标', '数值']));
+          L.push('| --- | --- |');
+          L.push(mdRow(['交易笔数', String(m.n)]));
+          L.push(mdRow(['胜率', (m.winrate * 100).toFixed(1) + '%']));
+          L.push(mdRow(['净期望 / 笔', fmtMoney(m.expectancy) + ' USDT']));
+          L.push(mdRow(['净收益', fmtMoney(m.net) + ' USDT']));
+          L.push(mdRow(['收益率', (m.net / cap * 100).toFixed(2) + '%']));
+          L.push(mdRow(['盈亏比 (PF)', m.pf === Infinity ? '∞' : m.pf.toFixed(2)]));
+          L.push(mdRow(['平均盈利', fmtMoney(m.avgWin) + ' USDT']));
+          L.push(mdRow(['平均亏损', fmtMoney(m.avgLoss) + ' USDT']));
+          L.push(mdRow(['期末净值', (cap + m.net).toFixed(2) + ' USDT']));
+          L.push('');
+          L.push('## 最大单笔与回撤');
+          L.push('');
+          var tMax = null, tMin = null;
+          r.trades.forEach(function (t) {
+            if (!tMax || t.pnl > tMax.pnl) tMax = t;
+            if (!tMin || t.pnl < tMin.pnl) tMin = t;
+          });
+          function tradeDesc(t) {
+            if (!t) return '—';
+            return fmtMoney(t.pnl) + ' USDT（' + fmtDateTime(t.entryTs) + ' 开仓，' + (t.dir === 1 ? '做多' : '做空') + '，扳机 ' + t.trigger + '，' + t.entry.toFixed(2) + ' → ' + t.exit.toFixed(2) + '，' + (REASONS[t.reason] || t.reason) + '）';
+          }
+          L.push(mdRow(['项目', '数值']));
+          L.push('| --- | --- |');
+          L.push(mdRow(['最大单笔盈利', tradeDesc(tMax)]));
+          L.push(mdRow(['最大单笔亏损', tradeDesc(tMin)]));
+          L.push(mdRow(['最大回撤', m.maxDD.toFixed(2) + ' USDT（' + (m.maxDD / cap * 100).toFixed(2) + '%，按本金计）']));
+          L.push('');
+          function groupSection(title, keyFn, labelFn) {
+            L.push('## ' + title);
+            L.push('');
+            var gs = groupStats(keyFn);
+            if (!gs.order.length) { L.push('无交易。'); L.push(''); return; }
+            L.push(mdRow(['分组', '笔数', '胜率', '盈亏合计']));
+            L.push('| --- | ---: | ---: | ---: |');
+            gs.order.forEach(function (k) {
+              var s = gs.g[k];
+              L.push(mdRow([labelFn(k), String(s.count), (s.wins / s.count * 100).toFixed(1) + '%', fmtMoney(Math.round(s.sum * 100) / 100) + ' USDT']));
+            });
+            L.push('');
+          }
+          groupSection('分扳机统计', function (t) { return t.trigger; }, function (k) { return TRIG_NAMES[k] || ('扳机 ' + k); });
+          groupSection('分退出原因统计', function (t) { return t.reason; }, function (k) { return REASONS[k] || k; });
+          groupSection('分方向统计', function (t) { return t.dir === 1 ? 'long' : 'short'; }, function (k) { return k === 'long' ? '做多' : '做空'; });
+          L.push('> 口径：数据源为 Binance 的 PAXG（黄金代币）1 分钟线，是 XAUUSD 现货黄金的代理；每笔成本 0.7 美元，止损 1.2×ATR 并钳制在 10~40 美元，每笔 0.01 手，未计隔夜费；本报告只跑四扳机的机械部分，不含实盘大脑的主观研判，结果不等于实盘表现。逐笔明细见同名 trades CSV。');
+          return L.join('\n') + '\n';
+        }
+        $('expCsvBtn').addEventListener('click', function () {
+          if (!lastRun) { $('status').textContent = '还没有可导出的回测结果，先跑一次回测。'; return; }
+          dlFile(exportBase('trades') + '.csv', buildTradesCSV(), 'text/csv;charset=utf-8');
+          $('status').textContent = '已导出交易明细 CSV：' + lastRun.trades.length + ' 笔逐笔交易。把这个文件发出去即可。';
+        });
+        $('expMdBtn').addEventListener('click', function () {
+          if (!lastRun) { $('status').textContent = '还没有可导出的回测结果，先跑一次回测。'; return; }
+          dlFile(exportBase('report') + '.md', buildReportMD(), 'text/markdown;charset=utf-8');
+          $('status').textContent = '已导出回测报告 MD：参数、总览、分扳机 / 分退出 / 分方向、最大单笔与回撤都在里面。';
+        });
+
         /* ---------- 现场回测会话：自动跑（分块）/ 单步（逐根 5m）/ 重置 ----------
            会话 = 一个 detail 模式的引擎生成器 + 计数器，自动跑与单步共用同一生成器、同一状态。
            自动跑：每帧推进 500 根 1m 后让出 UI 线程，无任何人为延迟。
@@ -970,7 +1113,9 @@
             SR.finished = true;
             lcCountUpdate();
             lcSys('■ 回测完成：' + m.n + ' 笔交易 · 净收益 ' + fmtMoney(m.net) + ' 美元 · 总耗时 ' + elapsed.toLocaleString('en-US') + ' ms · 数据指纹 ' + active.fp);
-            lastRun = { trades: trades, B: SR.B, startTs: SR.winStart, endTs: SR.lastTs, capital: SR.capital };
+            lastRun = { trades: trades, B: SR.B, startTs: SR.winStart, endTs: SR.lastTs, capital: SR.capital,
+              metrics: m, tpm: SR.tpm, enabled: SR.enabled, daysSel: SR.daysSel,
+              fp: active.fp, source: sourceLabel(), dataStartTs: SR.raw.t0, barCount: SR.raw.o.length, elapsed: elapsed };
             rpInvalidate();
             var raw = SR.raw;
             var dataTxt = sourceLabel() + '，' + fmtDate(raw.t0) + ' → ' + fmtDate(SR.lastTs) + '，共 ' + raw.o.length.toLocaleString('en-US') + ' 根';
@@ -1012,6 +1157,7 @@
             SR = {
               gen: window.BTEngine.runStream(B, { tpm: tpm, enabled: enabled, startTs: startTs, detail: true, initial: capital }),
               B: B, raw: raw, sig: paramSig(), t0ms: performance.now(),
+              tpm: tpm, enabled: enabled, daysSel: days,
               lastTs: lastTs, winStart: winStart, capital: capital,
               totalBars: 0, total5: 0, done5: 0, closedCount: 0, eqNow: capital, finished: false
             };
