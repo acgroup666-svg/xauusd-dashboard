@@ -116,6 +116,25 @@
       .run-btn:active { filter: brightness(.94); }
       .status { font-size: 12.5px; color: var(--ink-2); text-align: center; margin: 9px 0 0; min-height: 1.2em; }
 
+      /* 数据区 */
+      .data-rows { display: grid; gap: 7px; font-size: 13.5px; }
+      .data-rows .row { display: flex; justify-content: space-between; gap: 14px; }
+      .data-rows .k { color: var(--ink-2); flex: none; }
+      .data-rows .val { text-align: right; font-variant-numeric: tabular-nums; }
+      .fetch-btn {
+        width: 100%; appearance: none; border: 1px solid var(--gold); background: transparent;
+        color: var(--gold-strong); border-radius: 10px; font: inherit; font-size: 15px; font-weight: 700;
+        padding: 12px; cursor: pointer; margin-top: 14px; letter-spacing: .04em;
+      }
+      .fetch-btn:disabled { opacity: .55; cursor: wait; }
+      .fetch-btn:active { filter: brightness(1.15); }
+      .prog { display: none; margin-top: 12px; }
+      .prog.show { display: block; }
+      .prog-track { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+      .prog-fill { height: 100%; width: 0%; background: var(--gold-fill); border-radius: 3px; transition: width .25s ease; }
+      .prog-txt { font-size: 12.5px; color: var(--ink-2); margin: 6px 0 0; text-align: center; font-variant-numeric: tabular-nums; }
+      .data-note { font-size: 12.5px; color: var(--ink-2); margin: 10px 0 0; }
+
       /* 报告 */
       #report { display: none; }
       #report.show { display: block; }
@@ -161,8 +180,27 @@
     <main class="wrap">
       <div class="intro">
         <h1 class="serif">2.0 回测实验室</h1>
-        <p id="dataInfo">正在载入行情数据…</p>
+        <p>四扳机策略的机械回测引擎，逐根回放 1 分钟 K 线。可以先拉最新数据，也可以直接用现成数据跑。</p>
       </div>
+
+      <section aria-label="行情数据">
+        <h2 class="sec-title">行情数据</h2>
+        <div class="panel">
+          <div class="data-rows">
+            <div class="row"><span class="k">标的</span><span class="val">PAXGUSDT · 1 分钟 K 线</span></div>
+            <div class="row"><span class="k">数据区间</span><span class="val" id="dRange">—</span></div>
+            <div class="row"><span class="k">K 线数量</span><span class="val" id="dCount">—</span></div>
+            <div class="row"><span class="k">数据来源</span><span class="val" id="dSource">—</span></div>
+            <div class="row"><span class="k">更新时间</span><span class="val" id="dUpdated">—</span></div>
+          </div>
+          <button type="button" class="fetch-btn" id="fetchBtn">拉取最新数据（近 30 天）</button>
+          <div class="prog" id="prog">
+            <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+            <p class="prog-txt" id="progTxt">准备拉取…</p>
+          </div>
+          <p class="data-note" id="dataNote"></p>
+        </div>
+      </section>
 
       <section aria-label="回测参数">
         <h2 class="sec-title">回测参数</h2>
@@ -260,7 +298,7 @@
           <li>每笔固定成本 0.7 美元（点差 0.5 + 滑点 0.2），止损 1.2×ATR，止盈 TPM×ATR，每笔 0.01 手；未计隔夜费。</li>
           <li>实盘大脑的主观研判（临场方向感、盘面简报解读）无法用公式复制，本引擎只跑四扳机的机械部分，结果不等于实盘表现。</li>
           <li>扳机 B 的「三件套」形态依赖盘面简报，未建模，已剔除；高事件黑幕、周末清仓、EA 本地动态止盈线同样未建模。</li>
-          <li>本页所有计算都在你的浏览器里完成，数据为内置快照，不联网更新。</li>
+          <li>计算全部在你的浏览器里完成。点「拉取最新数据」会从 Binance 公开接口（data-api.binance.vision）实时拉取近 30 天的 PAXGUSDT 1 分钟线，拉到的行情缓存在本机浏览器里，6 小时内再次打开默认用缓存；拉取失败或离线时自动降级使用内置快照，回测照常能跑。</li>
         </ul>
       </section>
 
@@ -289,11 +327,154 @@
         }
         function fmtMoney(x) { return (x > 0 ? '+' : '') + x.toFixed(2); }
 
-        var raw = window.BT_DATA;
-        var totalBars = raw.o.length;
-        var t0 = raw.t0, t1 = raw.t0 + (totalBars - 1) * raw.step;
-        $('dataInfo').innerHTML = '数据：<b>PAXG 1 分钟 K 线 ' + totalBars.toLocaleString('en-US') + ' 根</b>，' +
-          fmtDate(t0) + ' → ' + fmtDate(t1) + '（内置快照）。选回测天数、调止盈倍数、开关四个扳机，点「开始回测」，全部计算在本机浏览器内完成。';
+        /* ---------- 数据层：内置快照 < 本地缓存 < 刚拉取，优先级从低到高 ---------- */
+        var LS_KEY = 'bt_paxg_1m';
+        var CACHE_TTL = 6 * 3600 * 1000;
+        var TARGET_BARS = 43200; /* 近 30 天 × 1440 根/天 */
+        var SNAPSHOT = window.BT_DATA;
+        var active = { raw: SNAPSHOT, source: 'snapshot', fetchedAt: null };
+
+        function rawEnd(raw) { return raw.t0 + (raw.o.length - 1) * raw.step; }
+        function fmtDateTime(ts) {
+          var d = new Date(ts + 8 * 3600 * 1000);
+          function p(x) { return (x < 10 ? '0' : '') + x; }
+          return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+        }
+        function agoTxt(ts) {
+          var s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+          if (s < 90) return '刚刚';
+          var m = Math.floor(s / 60); if (m < 60) return m + ' 分钟前';
+          var h = Math.floor(m / 60); if (h < 24) return h + ' 小时前';
+          return Math.floor(h / 24) + ' 天前';
+        }
+        function sourceLabel() {
+          if (active.source === 'live') return 'Binance 实时拉取';
+          if (active.source === 'cache') return '本地缓存（' + agoTxt(active.fetchedAt) + '拉取）';
+          return '内置快照';
+        }
+        function updateDataUI(note) {
+          var raw = active.raw;
+          $('dRange').textContent = fmtDate(raw.t0) + ' → ' + fmtDate(rawEnd(raw));
+          $('dCount').textContent = raw.o.length.toLocaleString('en-US') + ' 根';
+          $('dSource').textContent = sourceLabel();
+          $('dUpdated').textContent = active.fetchedAt ? fmtDateTime(active.fetchedAt) + '（北京时间）' : '页面内置快照（构建时拉取）';
+          if (note !== undefined) $('dataNote').textContent = note;
+        }
+        function setActive(raw, source, fetchedAt) {
+          active = { raw: raw, source: source, fetchedAt: fetchedAt };
+          barsCache = null;
+        }
+        /* 打开页面先看本地缓存：不满 6 小时就用它 */
+        (function loadCache() {
+          try {
+            var s = localStorage.getItem(LS_KEY);
+            if (!s) return;
+            var obj = JSON.parse(s);
+            if (!obj || !obj.data || !obj.data.o || obj.data.o.length < 1000 || !obj.fetchedAt) return;
+            if (Date.now() - obj.fetchedAt < CACHE_TTL) setActive(obj.data, 'cache', obj.fetchedAt);
+          } catch (e) { /* 存储不可用时用内置快照 */ }
+        })();
+        updateDataUI(active.source === 'cache'
+          ? '已载入本地缓存，点上方按钮可强制拉取最新数据。'
+          : '当前使用页面内置快照，点上方按钮可从 Binance 拉取最新 30 天数据。');
+
+        /* ---------- 从 Binance 分页拉取近 30 天 1 分钟线 ---------- */
+        var fetching = false;
+        function fetchPage(startTime, attempt) {
+          var url = 'https://data-api.binance.vision/api/v3/klines?symbol=PAXGUSDT&interval=1m&limit=1000&startTime=' + startTime;
+          return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          }).catch(function (err) {
+            if (attempt < 2) {
+              return new Promise(function (res) { setTimeout(res, 700 * (attempt + 1)); })
+                .then(function () { return fetchPage(startTime, attempt + 1); });
+            }
+            throw err;
+          });
+        }
+        function setProgress(done) {
+          var pct = Math.min(100, Math.round(done / TARGET_BARS * 100));
+          $('progFill').style.width = pct + '%';
+          $('progTxt').textContent = '已拉取 ' + done.toLocaleString('en-US') + ' / 约 ' + TARGET_BARS.toLocaleString('en-US') + ' 根（' + pct + '%）';
+        }
+        $('fetchBtn').addEventListener('click', function () {
+          if (fetching) return;
+          if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            updateDataUI('当前离线，拉不到新数据；继续使用' + sourceLabel() + '跑回测。');
+            return;
+          }
+          fetching = true;
+          var btn = this;
+          btn.disabled = true; btn.textContent = '拉取中…';
+          $('prog').classList.add('show');
+          setProgress(0);
+          var start = Math.floor((Date.now() - 30 * 86400000) / 60000) * 60000;
+          var pages = Math.ceil(TARGET_BARS / 1000);
+          var results = new Array(pages), doneBars = 0, pageErr = null, nextIdx = 0;
+          function worker() {
+            if (nextIdx >= pages) return Promise.resolve();
+            var k = nextIdx++;
+            return fetchPage(start + k * 1000 * 60000, 0).then(function (rows) {
+              results[k] = rows; doneBars += rows.length; setProgress(doneBars);
+            }).catch(function (e) { if (!pageErr) pageErr = e; }).then(worker);
+          }
+          var pool = [];
+          for (var w = 0; w < 4; w++) pool.push(worker());
+          Promise.all(pool).then(function () {
+            try {
+              if (pageErr) throw pageErr;
+              var all = [];
+              for (var k = 0; k < pages; k++) {
+                var rows = results[k];
+                if (rows) for (var j = 0; j < rows.length; j++) all.push(rows[j]);
+              }
+              if (all.length < 1000) throw new Error('只拉到 ' + all.length + ' 根，数据不完整');
+              all.sort(function (a, b) { return a[0] - b[0]; });
+              var t0 = all[0][0];
+              var n = Math.floor((all[all.length - 1][0] - t0) / 60000) + 1;
+              var o = new Array(n), h = new Array(n), l = new Array(n), c = new Array(n), v = new Array(n);
+              var filled = new Uint8Array(n);
+              for (var m = 0; m < all.length; m++) {
+                var kl = all[m], idx = Math.floor((kl[0] - t0) / 60000);
+                if (idx < 0 || idx >= n) continue;
+                o[idx] = Math.round(parseFloat(kl[1]) * 100);
+                h[idx] = Math.round(parseFloat(kl[2]) * 100);
+                l[idx] = Math.round(parseFloat(kl[3]) * 100);
+                c[idx] = Math.round(parseFloat(kl[4]) * 100);
+                v[idx] = Math.round(parseFloat(kl[5]) * 10000);
+                filled[idx] = 1;
+              }
+              /* 极少数缺分钟用前一根收盘价补平，保证等距序列（引擎按固定步长索引） */
+              var firstIdx = filled.indexOf(1), lastClose = null;
+              for (var q = 0; q < n; q++) {
+                if (filled[q]) { lastClose = c[q]; continue; }
+                if (lastClose === null) continue;
+                o[q] = h[q] = l[q] = c[q] = lastClose; v[q] = 0; filled[q] = 1;
+              }
+              if (firstIdx > 0) {
+                t0 += firstIdx * 60000;
+                o = o.slice(firstIdx); h = h.slice(firstIdx); l = l.slice(firstIdx); c = c.slice(firstIdx); v = v.slice(firstIdx);
+              }
+              var rawNew = { t0: t0, step: 60000, o: o, h: h, l: l, c: c, v: v };
+              var ts = Date.now();
+              setActive(rawNew, 'live', ts);
+              var saved = true;
+              try { localStorage.setItem(LS_KEY, JSON.stringify({ fetchedAt: ts, data: rawNew })); }
+              catch (e) { saved = false; }
+              $('progFill').style.width = '100%';
+              $('progTxt').textContent = '拉取完成：' + rawNew.o.length.toLocaleString('en-US') + ' 根';
+              updateDataUI(saved
+                ? '已拉到 Binance 最新数据并存入本地缓存，6 小时内再次打开直接用缓存。点「开始回测」即用这批数据。'
+                : '已拉到最新数据（本机存储空间不足，未能写入缓存，本次打开内有效）。点「开始回测」即用这批数据。');
+            } catch (err) {
+              $('progTxt').textContent = '拉取失败：' + (err && err.message ? err.message : err);
+              updateDataUI('拉取失败，已自动降级：继续使用' + sourceLabel() + '跑回测。');
+            }
+            fetching = false;
+            btn.disabled = false; btn.textContent = '拉取最新数据（近 30 天）';
+          });
+        });
 
         $('daysSeg').addEventListener('click', function (e) {
           var btn = e.target.closest('button'); if (!btn) return;
@@ -304,7 +485,7 @@
         $('tpm').addEventListener('input', function () { $('tpmVal').textContent = parseFloat(this.value).toFixed(1); });
 
         function getBars() {
-          if (!barsCache) barsCache = window.BTEngine.buildBars(raw);
+          if (!barsCache) barsCache = window.BTEngine.buildBars(active.raw);
           return barsCache;
         }
 
@@ -340,8 +521,8 @@
         function statCell(k, vHtml) { return '<div class="stat"><div class="k">' + k + '</div><div class="v serif">' + vHtml + '</div></div>'; }
         function sumCell(x) { return '<td class="r ' + (x > 0 ? 'pnl-pos' : (x < 0 ? 'pnl-neg' : '')) + '">' + fmtMoney(x) + '</td>'; }
 
-        function render(trades, m, elapsed, rangeTxt) {
-          $('repMeta').textContent = '回测区间 ' + rangeTxt + ' · 计算耗时 ' + elapsed + ' ms';
+        function render(trades, m, elapsed, rangeTxt, dataTxt) {
+          $('repMeta').textContent = '本次数据：' + dataTxt + ' · 回测区间 ' + rangeTxt + ' · 计算耗时 ' + elapsed + ' ms';
           var html = '';
           html += statCell('交易笔数', String(m.n));
           html += statCell('胜率', (m.winrate * 100).toFixed(1) + '<small>%</small>');
@@ -394,13 +575,15 @@
             try {
               var start = performance.now();
               var B = getBars();
-              var lastTs = raw.t0 + (totalBars - 1) * raw.step;
+              var raw = active.raw;
+              var lastTs = rawEnd(raw);
               var startTs = lastTs - days * 86400000;
               var enabled = { A: $('tgA').checked, B: $('tgB').checked, C: $('tgC').checked, D: $('tgD').checked };
               var trades = window.BTEngine.run(B, { tpm: parseFloat($('tpm').value), enabled: enabled, startTs: startTs });
               var m = window.BTEngine.metrics(trades);
               var elapsed = Math.round(performance.now() - start);
-              render(trades, m, elapsed, fmtDate(Math.max(startTs, t0)) + ' → ' + fmtDate(lastTs));
+              var dataTxt = sourceLabel() + '，' + fmtDate(raw.t0) + ' → ' + fmtDate(lastTs) + '，共 ' + raw.o.length.toLocaleString('en-US') + ' 根';
+              render(trades, m, elapsed, fmtDate(Math.max(startTs, raw.t0)) + ' → ' + fmtDate(lastTs), dataTxt);
               $('status').textContent = '回测完成：' + m.n + ' 笔交易。改参数再点一次即可对比。';
             } catch (err) {
               $('status').textContent = '回测出错：' + (err && err.message ? err.message : err);
